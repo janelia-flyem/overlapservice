@@ -1,4 +1,4 @@
-package overlap 
+package overlap
 
 import (
 	"encoding/binary"
@@ -59,21 +59,20 @@ type sparseBody struct {
 // sparseBodies contains a slice of rle bodies
 type sparseBodies []sparseBody
 
-// Len to enable sorting by number of spans 
+// Len to enable sorting by number of spans
 func (slice sparseBodies) Len() int {
 	return len(slice)
 }
 
-// Less to enable sorting by number of spans 
+// Less to enable sorting by number of spans
 func (slice sparseBodies) Less(i, j int) bool {
 	return len(slice[i].rle) < len(slice[j].rle)
 }
 
-// Swap to enable sorting by number of spans 
+// Swap to enable sorting by number of spans
 func (slice sparseBodies) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
-
 
 // parseURI is a utility function for retrieving parts of the URI
 func parseURI(r *http.Request, prefix string) ([]string, string, error) {
@@ -112,8 +111,8 @@ func getDVIDserver(jsondata map[string]interface{}) (string, error) {
 	if _, found := jsondata["dvid-server"]; found {
 		return jsondata["dvid-server"].(string), nil
 	} else if proxyServer != "" {
-                resp, err := http.Get("http://" + proxyServer + "/services/dvid/node")
-                if err != nil {
+		resp, err := http.Get("http://" + proxyServer + "/services/dvid/node")
+		if err != nil {
 			return "", fmt.Errorf("dvid server not found at proxy")
 			// handle error
 		}
@@ -129,7 +128,7 @@ func getDVIDserver(jsondata map[string]interface{}) (string, error) {
 		}
 		return dvidnode["service-location"].(string), nil
 	}
-        return "", fmt.Errorf("No proxy server location exists")
+	return "", fmt.Errorf("No proxy server location exists")
 }
 
 // InterfaceHandler returns the RAML interface for any request at
@@ -140,8 +139,6 @@ func interfaceHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	fmt.Fprintf(w, ramlInterface)
 }
-
-
 
 // serviceHandler handlers post request to "/jobs"
 func serviceHandler(w http.ResponseWriter, r *http.Request) {
@@ -178,7 +175,7 @@ func serviceHandler(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "DVID server could not be located on proxy")
 		return
 	}
-                
+
 	// get data uuid
 	uuid := json_data["uuid"].(string)
 
@@ -194,7 +191,7 @@ func serviceHandler(w http.ResponseWriter, r *http.Request) {
 		url := baseurl + strconv.Itoa(bodyid)
 
 		resp, err := http.Get(url)
-                if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != 200 {
 			badRequest(w, "Body could not be read from "+url)
 			return
 		}
@@ -209,7 +206,7 @@ func serviceHandler(w http.ResponseWriter, r *http.Request) {
 		binary.Read(resp.Body, binary.LittleEndian, &numspans)
 
 		sparse_body := sparseBody{}
-                sparse_body.bodyID = uint32(bodyid)
+		sparse_body.bodyID = uint32(bodyid)
 
 		for iter := 0; iter < int(numspans); iter += 1 {
 			var x, y, z, run int32
@@ -235,8 +232,8 @@ func serviceHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			sparse_data := sparseData{x, y, z, run}
-                        
-                        sparse_body.rle = append(sparse_body.rle, sparse_data)
+
+			sparse_body.rle = append(sparse_body.rle, sparse_data)
 		}
 		sparse_bodies = append(sparse_bodies, sparse_body)
 	}

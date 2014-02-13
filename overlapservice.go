@@ -3,16 +3,16 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/janelia-flyem/serviceproxy/register"
 	"github.com/janelia-flyem/overlapservice/overlap"
+	"github.com/janelia-flyem/serviceproxy/register"
 	"os"
 )
 
 const defaultPort = 25123
 
 var (
-        proxy  = flag.String("proxy", "", "")
-        registry  = flag.String("registry", "", "")
+	proxy    = flag.String("proxy", "", "")
+	registry = flag.String("registry", "", "")
 	portNum  = flag.Int("port", defaultPort, "")
 	showHelp = flag.Bool("help", false, "")
 )
@@ -36,11 +36,11 @@ func main() {
 		os.Exit(0)
 	}
 
-        if *registry != "" {
-                // creates adder service and points to first argument
-	        serfagent := register.NewAgent("calcoverlap", *portNum)
-	        serfagent.RegisterService(*registry)
-        }
-	
+	if *registry != "" {
+		// creates adder service and points to first argument
+		serfagent := register.NewAgent("calcoverlap", *portNum)
+		serfagent.RegisterService(*registry)
+	}
+
 	overlap.Serve(*proxy, *portNum)
 }

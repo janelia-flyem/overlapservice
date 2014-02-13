@@ -29,6 +29,6 @@ After posting this data, overlap (in terms of the number of touching voxel faces
 for each pair).  Pairs without overlap will not be returned.
 
 For more details, the rest interface specification is in RAML (http://raml.org) format.
-To view the interface, navigate to "http://ADDR/interface". 
+To view the interface, navigate to "http://ADDR/interface".
 */
 package main

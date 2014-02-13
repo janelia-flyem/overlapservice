@@ -1,11 +1,9 @@
 package overlap
 
 import (
-        "math"
+	"math"
 	"sort"
 )
-
-
 
 // yzPair is a key containing the y and z value for a given x run
 type yzPair struct {
@@ -45,7 +43,6 @@ func (slice xIndices) Less(i, j int) bool {
 func (slice xIndices) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
-
 
 // findLowerBound returns the array position to the element less than or equal to xval
 func findLowerBound(xval int32, xindices xIndices) (index int, found bool) {
@@ -150,20 +147,20 @@ func computeOverlap(sparse_bodies sparseBodies) overlapList {
 
 			if xlist, found := yzmaplist[yzPair{y, z}]; found {
 				// check if there is a pixel with a smaller x
-                                // the pixel could be of the same body so check
+				// the pixel could be of the same body so check
 				if index, found := findLowerBound(xmin-1, xlist); found {
-                                	xval := xlist[index]
-					if (bodyid1 != xval.bodyID) && (xval.length + xval.x - 1) == (xmin - 1) {
+					xval := xlist[index]
+					if (bodyid1 != xval.bodyID) && (xval.length+xval.x-1) == (xmin-1) {
 						body_pairs[*newBodyPair(bodyid1, xval.bodyID)] += 1
 					}
 				}
 
 				// check if there is a pixel greater in x
-                                // the pixel could be of the same body so check
+				// the pixel could be of the same body so check
 				if index, found := findEqual(xmax, xlist); found {
-                                    	if bodyid1 != xlist[index].bodyID { 
-                                                body_pairs[*newBodyPair(bodyid1, xlist[index].bodyID)] += 1
-                                        }
+					if bodyid1 != xlist[index].bodyID {
+						body_pairs[*newBodyPair(bodyid1, xlist[index].bodyID)] += 1
+					}
 				}
 			}
 		}
@@ -190,10 +187,10 @@ func computeOverlap(sparse_bodies sparseBodies) overlapList {
 // overlap calculates the overlap between bodyid1 and different bodies and puts the value in body_pairs
 func overlap(body_pairs map[bodyPair]uint32, xlist xIndices, xmin int32, xmax int32, bodyid1 uint32) {
 	var maxindex int
-        var minindex int
-        var found bool
+	var minindex int
+	var found bool
 	// grab the last index less than or equal to the largest index in the body
-        if maxindex, found = findLowerBound(xmax-1, xlist); !found {
+	if maxindex, found = findLowerBound(xmax-1, xlist); !found {
 		return
 	}
 
