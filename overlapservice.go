@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/janelia-flyem/serviceproxy/register"
+	"github.com/janelia-flyem/overlapservice/overlap"
 	"os"
 )
 
@@ -11,6 +12,7 @@ const defaultPort = 25123
 
 var (
         proxy  = flag.String("proxy", "", "")
+        registry  = flag.String("registry", "", "")
 	portNum  = flag.Int("port", defaultPort, "")
 	showHelp = flag.Bool("help", false, "")
 )
@@ -18,8 +20,9 @@ var (
 const helpMessage = `
 Launches service that computes the overlap of a set of cells.
 
-Usage: adderexample <registry address>
-      -proxy    (string)        Server and port number for proxy
+Usage: adderexample
+      -proxy    (string)        Server and port number for proxy address of serviceproxy
+      -registry (string)        Server and port number for registry address of serviceproxy
       -port     (number)        Port for HTTP server
   -h, -help     (flag)          Show help message
 `
@@ -33,16 +36,11 @@ func main() {
 		os.Exit(0)
 	}
 
-	// register service
-	if flag.NArg() != 1 {
-		fmt.Printf("Must provide registry address")
-		fmt.Printf(helpMessage)
-		os.Exit(0)
-	}
-
-	// creates adder service and points to first argument
-	serfagent := register.NewAgent("calcoverlap", *portNum)
-	serfagent.RegisterService(flag.Arg(0))
-
-	Serve(*proxy, *portNum)
+        if *registry != "" {
+                // creates adder service and points to first argument
+	        serfagent := register.NewAgent("calcoverlap", *portNum)
+	        serfagent.RegisterService(*registry)
+        }
+	
+	overlap.Serve(*proxy, *portNum)
 }

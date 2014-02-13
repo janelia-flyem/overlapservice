@@ -3,7 +3,8 @@
 [![Build Status](https://drone.io/github.com/janelia-flyem/overlapservice/status.png)](https://drone.io/github.com/janelia-flyem/overlapservice/latest)
 
 
-This go package calculates the overlap between a set of bodies, as
+overlapservice is a simple REST service written in go
+that calculates the overlap between a set of bodies, as
 defined/stored in [DVID](https://github.com/janelia-flyem/dvid).  For
 example, if there are two segmented neurons in a dataset stored in DVID,
 this service can be used to find the contact area between those neurons.
@@ -27,14 +28,27 @@ To install overlapservice:
 
 To launch the service:
 
-    % overlapservice [-port WEBPORT (default 15333)]
+    % overlapservice [-proxy PROXYADDRESS (default "")] [-port WEBPORT (default 15123)] [-registry REGISTRYADDRESS (default "")]
 
 This will start a web server at the given port on the current
-machine.
+machine (ADDR).  Optional: The registry address specifies the serviceproxy registry location
+(e.g., "127.0.0.1:7946" if serviceproxy was launched at this address).  The proxy
+address is the location of the serviceproxy http server (e.g. "127.0.0.1:15333" if
+serviceproxy web server was launched at this address).
 
-The rest interface specification is in [RAML](http://raml.org) format.
-To view the interface, navigate to
-"127.0.0.1:WEBPORT/interface".  To view the RAML interface, we use
-the [api-console](https://github.com/mulesoft/api-console) javascript-based viewer.
+The simplest way to use the server is navigate to "http://ADDR" and submit the provided form.
+A DVID server location, UUID from DVID, and a set of body IDs must be provided.  Optionally, one can post
+a JSON directly to the service at URI /service.  Below is a sample JSON:
 
+{
+    "dvid-server" : "blah.com:12345",
+    "uuid": "4234",
+    "bodies": [100, 140, 233]
+}
+
+After posting this data, overlap (in terms of the number of touching voxel faces) will be returned
+for each pair).  Pairs without overlap will not be returned.
+
+For more details, the rest interface specification is in [RAML](http://raml.org) format.
+To view the interface, navigate to "http://ADDR/interface". 
 
