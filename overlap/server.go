@@ -131,35 +131,11 @@ func getDVIDserver(jsondata map[string]interface{}) (string, error) {
 	return "", fmt.Errorf("No proxy server location exists")
 }
 
-// InterfaceHandler returns the RAML interface for any request at
-// the /interface URI.
-func interfaceHandler(w http.ResponseWriter, r *http.Request) {
-	// allow resources to be accessed via ajax
-	w.Header().Set("Content-Type", "application/raml+yaml")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	fmt.Fprintf(w, ramlInterface)
-}
-
-// serviceHandler handlers post request to "/jobs"
-func serviceHandler(w http.ResponseWriter, r *http.Request) {
-	pathlist, requestType, err := parseURI(r, "/service/")
-	if err != nil || len(pathlist) != 0 {
-		badRequest(w, "Error: incorrectly formatted request")
-		return
-	}
-	if requestType != "post" {
-		badRequest(w, "only supports posts")
-		return
-	}
-
-	// read json
-	decoder := json.NewDecoder(r.Body)
-	var json_data map[string]interface{}
-	err = decoder.Decode(&json_data)
-
-	// convert schema to json data
+func handleOverlap(w http.ResponseWriter, json_data map[string]interface{}) {
+        // convert schema to json data
 	var schema_data interface{}
 	json.Unmarshal([]byte(serviceSchema), &schema_data)
+
 
 	// validate json schema
 	schema, err := gojsonschema.NewJsonSchemaDocument(schema_data)
@@ -247,6 +223,104 @@ func serviceHandler(w http.ResponseWriter, r *http.Request) {
 
 	jsondata, _ := json.Marshal(json_struct)
 	fmt.Fprintf(w, string(jsondata))
+
+
+
+}
+
+
+
+
+
+// InterfaceHandler returns the RAML interface for any request at
+// the /interface URI.
+func interfaceHandler(w http.ResponseWriter, r *http.Request) {
+	// allow resources to be accessed via ajax
+	w.Header().Set("Content-Type", "application/raml+yaml")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	fmt.Fprintf(w, ramlInterface)
+}
+
+// frontHandler handles GET requests to "/"
+func frontHandler(w http.ResponseWriter, r *http.Request) {
+	pathlist, requestType, err := parseURI(r, "/")
+	if err != nil || len(pathlist) != 0 {
+		badRequest(w, "Error: incorrectly formatted request")
+		return
+	}
+	if requestType != "get" {
+		badRequest(w, "only supports gets")
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+
+        htmldata := "<form id=\"form1\" action=\"/formhandler/\" method=\"post\">"
+
+        // if there is a proxy server assume DVID is connected to it to simplify interface
+        if proxyServer == "" {
+                htmldata += "DVID server (e.g., emdata1:80): <input type=\"text\" name=\"dvid-server\"><br>"
+        } 
+        htmldata += "DVID uuid: <input type=\"text\" name=\"uuid\"><br>"
+        htmldata += "Body list (e.g., 3, 4, 34): <input type=\"text\" name=\"bodies\"><br>"
+        htmldata += "<input type=\"submit\" value=\"Submit\"/></form>"
+
+	fmt.Fprintf(w, htmldata)
+}
+
+
+// serviceHandler handles post request to "/service"
+func formHandler(w http.ResponseWriter, r *http.Request) {
+        pathlist, requestType, err := parseURI(r, "/formhandler/")
+	if err != nil || len(pathlist) != 0 {
+		badRequest(w, "Error: incorrectly formatted request")
+		return
+	}
+	if requestType != "post" {
+		badRequest(w, "only supports posts")
+		return
+	}
+
+        json_data := make(map[string]interface{})        
+        dvidserver := r.FormValue("dvid-server")
+        
+        if dvidserver != "" {
+                json_data["dvid-server"] = dvidserver
+        }
+
+        json_data["uuid"] = r.FormValue("uuid")
+        bodies := r.FormValue("bodies")
+        
+        var body_list []interface{}
+
+        body_list_str := strings.Split(bodies, ",")
+        for _, body_str := range body_list_str {
+               bodyid, _ := strconv.Atoi(strings.Trim(body_str, " "))
+               body_list = append(body_list, float64(bodyid))
+        }
+        json_data["bodies"] = body_list
+
+
+        handleOverlap(w, json_data)
+}
+
+// serviceHandler handles post request to "/service"
+func serviceHandler(w http.ResponseWriter, r *http.Request) {
+	pathlist, requestType, err := parseURI(r, "/service/")
+	if err != nil || len(pathlist) != 0 {
+		badRequest(w, "Error: incorrectly formatted request")
+		return
+	}
+	if requestType != "post" {
+		badRequest(w, "only supports posts")
+		return
+	}
+
+	// read json
+	decoder := json.NewDecoder(r.Body)
+	var json_data map[string]interface{}
+	err = decoder.Decode(&json_data)
+
+        handleOverlap(w, json_data)
 }
 
 // Serve is the main server function call that creates http server and handlers
@@ -263,6 +337,12 @@ func Serve(proxyserver string, port int) {
 
 	// serve out static json schema and raml (allow access)
 	http.HandleFunc(interfacePath, interfaceHandler)
+
+	// front page containing simple form 
+	http.HandleFunc("/", frontHandler)
+
+	// handle form inputs
+	http.HandleFunc("/formhandler/", formHandler)
 
 	// perform service
 	http.HandleFunc("/service/", serviceHandler)

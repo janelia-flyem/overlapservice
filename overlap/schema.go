@@ -12,10 +12,10 @@ const serviceSchema = `
     },
     "uuid": { "type" : "string" },
     "bodies": { 
-      "description": "Array of body ids",
+      "description": "Array of body ids (should be unsigned ints but for some reason validator requries a number type",
       "type": "array",
       "minItems": 2,
-      "items": {"type": "integer", "minimum": 1},
+      "items": {"type": "number", "minimum": 1},
       "uniqueItems": true
     }
   },
