@@ -279,6 +279,47 @@ func frontHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 
+// formHandler2 handles post request to "/formhandler2" from the web interface
+func formHandler2(w http.ResponseWriter, r *http.Request) {
+        pathlist, requestType, err := parseURI(r, "/formhandler2/")
+	if err != nil || len(pathlist) != 0 {
+		badRequest(w, "Error: incorrectly formatted request")
+		return
+	}
+	if requestType != "post" {
+		badRequest(w, "only supports posts")
+		return
+	}
+
+        json_data := make(map[string]interface{})        
+        dvidserver := r.FormValue("dvidserver")
+        
+        if dvidserver != "" {
+                json_data["dvid-server"] = dvidserver
+        }
+
+        json_data["uuid"] = r.FormValue("uuid")
+        bodies := r.FormValue("bodies")
+        
+        var body_list []interface{}
+
+        body_list_str := strings.Split(bodies, ",")
+        for _, body_str := range body_list_str {
+               bodyid, _ := strconv.Atoi(strings.Trim(body_str, " "))
+               body_list = append(body_list, float64(bodyid))
+        }
+        json_data["bodies"] = body_list
+
+        sparse_bodies, err := extractBodies(w, json_data, statsSchema)
+        if err != nil {
+                return
+        }
+
+        outputStats(w, sparse_bodies)
+}
+
+
+
 // formHandler handles post request to "/formhandler" from the web interface
 func formHandler(w http.ResponseWriter, r *http.Request) {
         pathlist, requestType, err := parseURI(r, "/formhandler/")
@@ -389,6 +430,9 @@ func Serve(proxyserver string, port int) {
 
 	// handle form inputs
 	http.HandleFunc("/formhandler/", formHandler)
+	
+        // handle form inputs
+	http.HandleFunc("/formhandler2/", formHandler2)
 
 	// perform overlap service
 	http.HandleFunc(overlapPath, overlapHandler)
