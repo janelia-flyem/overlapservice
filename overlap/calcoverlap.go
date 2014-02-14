@@ -69,8 +69,122 @@ func findEqual(xval int32, xindices xIndices) (index int, found bool) {
 	return
 }
 
+// loadSparseBodyYZs indexes the RLE into a YZ map for easy analysis and returns the size of the body
+func loadSparseBodyYZs(sparse_body sparseBody, yzmaplist map[yzPair]xIndices) (uint32) {
+        var bodysize uint32
+        bodysize = 0
+
+        // slice of x's
+        xindices := xIndices{}
+        ycurr := int32(-100000000)
+        zcurr := int32(-100000000)
+        for _, chunk := range sparse_body.rle {
+                y := chunk.y
+                z := chunk.z
+                yzpair := yzPair{y, z}
+                bodysize += uint32(chunk.length)
+
+                if y != ycurr || z != zcurr {
+                        if len(xindices) > 0 {
+                                yzpairold := yzPair{ycurr, zcurr}
+                                yzmaplist[yzpairold] = append(yzmaplist[yzpairold], xindices...)
+                        }
+
+                        ycurr = y
+                        zcurr = z
+                        if _, found := yzmaplist[yzpair]; !found {
+                                yzmaplist[yzpair] = xIndices{}
+                        }
+                        xindices = xIndices{}
+
+                }
+                xindices = append(xindices, xIndex{sparse_body.bodyID, chunk.x, chunk.length})
+        }
+        if len(xindices) > 0 {
+                yzpairold := yzPair{ycurr, zcurr}
+                yzmaplist[yzpairold] = append(yzmaplist[yzpairold], xindices...)
+        }
+
+        return bodysize
+}
+
+// computeStats finds the volume and surface area for each body
+func computeStats(sparse_bodies sparseBodies) resultList {
+	stats_slice := resultList{}
+
+        for _, sparse_body := range sparse_bodies {
+                // hash of yz value to sorted slice of xIndices
+                var yzmaplist = make(map[yzPair]xIndices)
+                
+                bodyid := sparse_body.bodyID
+                // grab volume
+                bodyvolume := loadSparseBodyYZs(sparse_body, yzmaplist)
+
+                // sort all xindices
+                for _, xindices := range yzmaplist {
+                        sort.Sort(xindices)
+                }
+
+                // maximum number of adjacencies possible
+                var totaladjacencies uint32
+                totaladjacencies = 0
+	
+                // contains overlap results for each body pair
+	        body_pairs := make(map[bodyPair]uint32)
+
+ 		for _, chunk := range sparse_body.rle {
+			y := chunk.y
+			z := chunk.z
+			xmin := chunk.x
+			xmax := xmin + chunk.length
+
+                        // maximum possible adjacency for this run
+                        totaladjacencies += uint32(chunk.length * 4 + 2)
+
+			// find total number of adjancencies to itself (use 0 body id since there are no such body ids)
+			if xlist, found := yzmaplist[yzPair{y + 1, z}]; found {
+				overlap(body_pairs, xlist, xmin, xmax, 0)
+			}
+			if xlist, found := yzmaplist[yzPair{y - 1, z}]; found {
+				overlap(body_pairs, xlist, xmin, xmax, 0)
+			}
+			if xlist, found := yzmaplist[yzPair{y, z + 1}]; found {
+				overlap(body_pairs, xlist, xmin, xmax, 0)
+			}
+			if xlist, found := yzmaplist[yzPair{y, z - 1}]; found {
+				overlap(body_pairs, xlist, xmin, xmax, 0)
+			}
+
+			if xlist, found := yzmaplist[yzPair{y, z}]; found {
+				// check if there is a pixel with a smaller x in the same body
+				if index, found := findLowerBound(xmin-1, xlist); found {
+					xval := xlist[index]
+					if (xval.length+xval.x-1) == (xmin-1) {
+						body_pairs[*newBodyPair(0, xval.bodyID)] += 1
+					}
+				}
+
+				// check if there is a pixel greater in x in the same body
+				if index, found := findEqual(xmax, xlist); found {
+					body_pairs[*newBodyPair(0, xlist[index].bodyID)] += 1
+				}
+			}
+		}
+                
+                bodyarea := totaladjacencies - body_pairs[*newBodyPair(0, bodyid)]
+ 
+		tempslice := []uint32{bodyid, bodyvolume, bodyarea}
+		stats_slice = append(stats_slice, tempslice)
+	}
+
+	// put body pairs with the largest surface area first
+	sort.Sort(sort.Reverse(stats_slice))
+
+	return stats_slice
+}
+
 // computeOverlap finds the overlap between the list of bodies using the RLE, only bodies with overlap are returned
-func computeOverlap(sparse_bodies sparseBodies) overlapList {
+func computeOverlap(sparse_bodies sparseBodies) resultList {
 	// smallest rle first -- more memory use (or largest first for more computation)
 	sort.Sort(sparse_bodies)
 
@@ -83,35 +197,7 @@ func computeOverlap(sparse_bodies sparseBodies) overlapList {
 
 	// preprocess rles -- do not load the first body
 	for _, sparse_body := range sparse_bodies[1:] {
-		// slice of x's
-		xindices := xIndices{}
-		ycurr := int32(-100000000)
-		zcurr := int32(-100000000)
-		for _, chunk := range sparse_body.rle {
-			y := chunk.y
-			z := chunk.z
-			yzpair := yzPair{y, z}
-
-			if y != ycurr || z != zcurr {
-				if len(xindices) > 0 {
-					yzpairold := yzPair{ycurr, zcurr}
-					yzmaplist[yzpairold] = append(yzmaplist[yzpairold], xindices...)
-				}
-
-				ycurr = y
-				zcurr = z
-				if _, found := yzmaplist[yzpair]; !found {
-					yzmaplist[yzpair] = xIndices{}
-				}
-				xindices = xIndices{}
-
-			}
-			xindices = append(xindices, xIndex{sparse_body.bodyID, chunk.x, chunk.length})
-		}
-		if len(xindices) > 0 {
-			yzpairold := yzPair{ycurr, zcurr}
-			yzmaplist[yzpairold] = append(yzmaplist[yzpairold], xindices...)
-		}
+                loadSparseBodyYZs(sparse_body, yzmaplist)
 	}
 
 	// sort all xindices
@@ -172,7 +258,7 @@ func computeOverlap(sparse_bodies sparseBodies) overlapList {
 		}
 	}
 
-	overlap_slice := overlapList{}
+	overlap_slice := resultList{}
 	for pair, val := range body_pairs {
 		tempslice := []uint32{pair.body1, pair.body2, val}
 		overlap_slice = append(overlap_slice, tempslice)

@@ -38,7 +38,7 @@ serviceproxy web server was launched at this address).
 
 The simplest way to use the server is navigate to "http://ADDR" and submit the provided form.
 A DVID server location, UUID from DVID, and a set of body IDs must be provided.  Optionally, one can post
-a JSON directly to the service at URI /service.  Below is a sample JSON:
+a JSON directly to the service at URI /overlap.  Below is a sample JSON:
 
 {
     "dvid-server" : "blah.com:12345",
@@ -48,6 +48,9 @@ a JSON directly to the service at URI /service.  Below is a sample JSON:
 
 After posting this data, overlap (in terms of the number of touching voxel faces) will be returned
 for each pair).  Pairs without overlap will not be returned.
+
+Another interface is provided at /bodystats that will also take a list of bodies but will return
+the volume and surface area (actually the number of voxel faces, so an overestimate).
 
 For more details, the rest interface specification is in [RAML](http://raml.org) format.
 To view the interface, navigate to "http://ADDR/interface". 

@@ -16,6 +16,8 @@ import (
 const (
 	// Contain URI location for interface
 	interfacePath = "/interface/"
+        overlapPath = "/overlap/"
+        bodystatsPath = "/bodystats/"
 )
 
 // Address for proxy server
@@ -24,21 +26,21 @@ var proxyServer string
 // webAddress is the http address for the server
 var webAddress string
 
-// overlapList contains the final output as a slice of [body1, body2, overalap]
-type overlapList [][]uint32
+// resultList contains the final output as a slice of [body1, body2, overalap] or [body1, volume, surface area]
+type resultList [][]uint32
 
-// Len to enable sorting by overlap amount
-func (slice overlapList) Len() int {
+// Len to enable sorting by overlap or surface area
+func (slice resultList) Len() int {
 	return len(slice)
 }
 
-// Less to enable sorting by overlap amount
-func (slice overlapList) Less(i, j int) bool {
+// Less to enable sorting by overlap or surface area
+func (slice resultList) Less(i, j int) bool {
 	return slice[i][2] < slice[j][2]
 }
 
-// Swap to enable sorting by overlap amount
-func (slice overlapList) Swap(i, j int) {
+// Swap to enable sorting by overlap or surface area
+func (slice resultList) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
@@ -131,24 +133,25 @@ func getDVIDserver(jsondata map[string]interface{}) (string, error) {
 	return "", fmt.Errorf("No proxy server location exists")
 }
 
-func handleOverlap(w http.ResponseWriter, json_data map[string]interface{}) {
+func extractBodies(w http.ResponseWriter, json_data map[string]interface{}, schemaData string) (sparse_bodies sparseBodies, err error) {
         // convert schema to json data
 	var schema_data interface{}
-	json.Unmarshal([]byte(serviceSchema), &schema_data)
+	json.Unmarshal([]byte(schemaData), &schema_data)
 
 	// validate json schema
 	schema, err := gojsonschema.NewJsonSchemaDocument(schema_data)
 	validationResult := schema.Validate(json_data)
 	if !validationResult.IsValid() {
 		badRequest(w, "JSON did not pass validation")
-		return
+		err = fmt.Errorf("JSON did not pass validation")
+                return
 	}
 
 	// retrieve dvid server
 	dvidserver, err := getDVIDserver(json_data)
 	if err != nil {
 		badRequest(w, "DVID server could not be located on proxy")
-		return
+		return 
 	}
 
 	// get data uuid
@@ -157,17 +160,15 @@ func handleOverlap(w http.ResponseWriter, json_data map[string]interface{}) {
 	// base url for all dvid queries
 	baseurl := dvidserver + "/api/node/" + uuid + "/sp2body/sparsevol/"
 
-	// read data for each body
-	sparse_bodies := sparseBodies{}
-
 	bodyinter_list := json_data["bodies"].([]interface{})
 	for _, bodyinter := range bodyinter_list {
 		bodyid := int(bodyinter.(float64))
 		url := baseurl + strconv.Itoa(bodyid)
 
-		resp, err := http.Get(url)
-		if err != nil || resp.StatusCode != 200 {
+		resp, err2 := http.Get(url)
+		if err2 != nil || resp.StatusCode != 200 {
 			badRequest(w, "Body could not be read from "+url)
+		        err = fmt.Errorf("Body could not be read")
 			return
 		}
 		defer resp.Body.Close()
@@ -185,7 +186,7 @@ func handleOverlap(w http.ResponseWriter, json_data map[string]interface{}) {
 
 		for iter := 0; iter < int(numspans); iter += 1 {
 			var x, y, z, run int32
-			err := binary.Read(resp.Body, binary.LittleEndian, &x)
+			err = binary.Read(resp.Body, binary.LittleEndian, &x)
 			if err != nil {
 				badRequest(w, "Sparse body encoding incorrect")
 				return
@@ -213,9 +214,15 @@ func handleOverlap(w http.ResponseWriter, json_data map[string]interface{}) {
 		sparse_bodies = append(sparse_bodies, sparse_body)
 	}
 
+        return
+
+}
+
+// outputOverlap generates the overlap between bodies and outputs to json
+func outputOverlap(w http.ResponseWriter, sparse_bodies sparseBodies) { 
 	// algorithm for computing overlap -- empty if there is no overlap
 	overlap_list := computeOverlap(sparse_bodies)
-	json_struct := make(map[string]overlapList)
+	json_struct := make(map[string]resultList)
 	json_struct["overlap-list"] = overlap_list
 
 	w.Header().Set("Content-Type", "application/json")
@@ -224,8 +231,18 @@ func handleOverlap(w http.ResponseWriter, json_data map[string]interface{}) {
 	fmt.Fprintf(w, string(jsondata))
 }
 
+// outputStats generates body stats and outputs to json
+func outputStats(w http.ResponseWriter, sparse_bodies sparseBodies) { 
+	// algorithm for computing overlap -- empty if there is no overlap
+	stat_list := computeStats(sparse_bodies)
+	json_struct := make(map[string]resultList)
+	json_struct["body-stats"] = stat_list
 
+	w.Header().Set("Content-Type", "application/json")
 
+	jsondata, _ := json.Marshal(json_struct)
+	fmt.Fprintf(w, string(jsondata))
+}
 
 
 // InterfaceHandler returns the RAML interface for any request at
@@ -293,12 +310,18 @@ func formHandler(w http.ResponseWriter, r *http.Request) {
         }
         json_data["bodies"] = body_list
 
-        handleOverlap(w, json_data)
+        sparse_bodies, err := extractBodies(w, json_data, overlapSchema)
+        if err != nil {
+                return
+        }
+
+        outputOverlap(w, sparse_bodies)
 }
 
-// serviceHandler handles post request to "/service"
-func serviceHandler(w http.ResponseWriter, r *http.Request) {
-	pathlist, requestType, err := parseURI(r, "/service/")
+
+// bodystatsHandler handles post request to "/service"
+func bodystatsHandler(w http.ResponseWriter, r *http.Request) {
+	pathlist, requestType, err := parseURI(r, bodystatsPath)
 	if err != nil || len(pathlist) != 0 {
 		badRequest(w, "Error: incorrectly formatted request")
 		return
@@ -313,7 +336,37 @@ func serviceHandler(w http.ResponseWriter, r *http.Request) {
 	var json_data map[string]interface{}
 	err = decoder.Decode(&json_data)
 
-        handleOverlap(w, json_data)
+        sparse_bodies, err := extractBodies(w, json_data, statsSchema)
+        if err != nil {
+                return
+        }
+        outputStats(w, sparse_bodies)
+}
+
+
+
+// overlapHandler handles post request to "/service"
+func overlapHandler(w http.ResponseWriter, r *http.Request) {
+	pathlist, requestType, err := parseURI(r, overlapPath)
+	if err != nil || len(pathlist) != 0 {
+		badRequest(w, "Error: incorrectly formatted request")
+		return
+	}
+	if requestType != "post" {
+		badRequest(w, "only supports posts")
+		return
+	}
+
+	// read json
+	decoder := json.NewDecoder(r.Body)
+	var json_data map[string]interface{}
+	err = decoder.Decode(&json_data)
+
+        sparse_bodies, err := extractBodies(w, json_data, overlapSchema)
+        if err != nil {
+                return
+        }
+        outputOverlap(w, sparse_bodies)
 }
 
 // Serve is the main server function call that creates http server and handlers
@@ -337,8 +390,11 @@ func Serve(proxyserver string, port int) {
 	// handle form inputs
 	http.HandleFunc("/formhandler/", formHandler)
 
-	// perform service
-	http.HandleFunc("/service/", serviceHandler)
+	// perform overlap service
+	http.HandleFunc(overlapPath, overlapHandler)
+	
+        // perform bodystats service
+	http.HandleFunc(bodystatsPath, bodystatsHandler)
 
 	// exit server if user presses Ctrl-C
 	go func() {
