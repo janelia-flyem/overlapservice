@@ -109,7 +109,7 @@ func badRequest(w http.ResponseWriter, msg string) {
 // getDVIDserver retrieves the server from the JSON or looks it up
 func getDVIDserver(jsondata map[string]interface{}) (string, error) {
 	if _, found := jsondata["dvid-server"]; found {
-		return jsondata["dvid-server"].(string), nil
+		return ("http://" + jsondata["dvid-server"].(string)), nil
 	} else if proxyServer != "" {
 		resp, err := http.Get("http://" + proxyServer + "/services/dvid/node")
 		if err != nil {
@@ -135,7 +135,6 @@ func handleOverlap(w http.ResponseWriter, json_data map[string]interface{}) {
         // convert schema to json data
 	var schema_data interface{}
 	json.Unmarshal([]byte(serviceSchema), &schema_data)
-
 
 	// validate json schema
 	schema, err := gojsonschema.NewJsonSchemaDocument(schema_data)
@@ -223,9 +222,6 @@ func handleOverlap(w http.ResponseWriter, json_data map[string]interface{}) {
 
 	jsondata, _ := json.Marshal(json_struct)
 	fmt.Fprintf(w, string(jsondata))
-
-
-
 }
 
 
@@ -252,23 +248,21 @@ func frontHandler(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "only supports gets")
 		return
 	}
-	w.Header().Set("Content-Type", "text/html")
-
-        htmldata := "<form id=\"form1\" action=\"/formhandler/\" method=\"post\">"
-
-        // if there is a proxy server assume DVID is connected to it to simplify interface
-        if proxyServer == "" {
-                htmldata += "DVID server (e.g., emdata1:80): <input type=\"text\" name=\"dvid-server\"><br>"
-        } 
-        htmldata += "DVID uuid: <input type=\"text\" name=\"uuid\"><br>"
-        htmldata += "Body list (e.g., 3, 4, 34): <input type=\"text\" name=\"bodies\"><br>"
-        htmldata += "<input type=\"submit\" value=\"Submit\"/></form>"
-
-	fmt.Fprintf(w, htmldata)
+	w.Header().Set("Content-Type", "text/html")       
+    
+        tempdata := make(map[string]interface{})
+	dvidserver, err := getDVIDserver(tempdata)
+        if err != nil {
+            dvidserver = ""
+        } else {
+            dvidserver = strings.Replace(dvidserver, "http://", "", 1) 
+        }
+        formHTMLsub := strings.Replace(formHTML, "DEFAULT", dvidserver, 1)
+	fmt.Fprintf(w, formHTMLsub)
 }
 
 
-// serviceHandler handles post request to "/service"
+// formHandler handles post request to "/formhandler" from the web interface
 func formHandler(w http.ResponseWriter, r *http.Request) {
         pathlist, requestType, err := parseURI(r, "/formhandler/")
 	if err != nil || len(pathlist) != 0 {
@@ -281,7 +275,7 @@ func formHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
         json_data := make(map[string]interface{})        
-        dvidserver := r.FormValue("dvid-server")
+        dvidserver := r.FormValue("dvidserver")
         
         if dvidserver != "" {
                 json_data["dvid-server"] = dvidserver
@@ -298,7 +292,6 @@ func formHandler(w http.ResponseWriter, r *http.Request) {
                body_list = append(body_list, float64(bodyid))
         }
         json_data["bodies"] = body_list
-
 
         handleOverlap(w, json_data)
 }
