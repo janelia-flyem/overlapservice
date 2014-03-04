@@ -141,7 +141,7 @@ func extractBodies(w http.ResponseWriter, json_data map[string]interface{}, sche
 	// validate json schema
 	schema, err := gojsonschema.NewJsonSchemaDocument(schema_data)
 	validationResult := schema.Validate(json_data)
-	if !validationResult.IsValid() {
+	if !validationResult.Valid() {
 		badRequest(w, "JSON did not pass validation")
 		err = fmt.Errorf("JSON did not pass validation")
                 return
