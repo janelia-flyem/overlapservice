@@ -1,4 +1,4 @@
-# Service Proxy Tool
+# Overlap Service Tool [![Picture](https://raw.github.com/janelia-flyem/janelia-flyem.github.com/master/images/gray_janelia_logo.png)](http://janelia.org/)
 
 [![Build Status](https://drone.io/github.com/janelia-flyem/overlapservice/status.png)](https://drone.io/github.com/janelia-flyem/overlapservice/latest)
 
